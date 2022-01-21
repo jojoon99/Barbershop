@@ -142,3 +142,5 @@ pretrained_models/seg.pth
 /input/*
 /unprocessed/*
 /output*
+/tmp*
+/test*
