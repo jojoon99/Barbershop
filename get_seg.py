@@ -15,10 +15,13 @@ from models.Alignment import Alignment
 from models.Blending import Blending
 
 import glob
+import PIL
 from utils.data_utils import load_FS_latent, convert_npy_code
+from utils.seg_utils import vis_seg
 
 def main(args):
-    ii2s = Embedding(args)
+    #ii2s = Embedding(args)
+    
     #
     # ##### Option 1: input folder
     # # ii2s.invert_images_in_W()
@@ -41,33 +44,50 @@ def main(args):
     #im_paths = glob.glob(os.path.join(args.input_dir, "bts*.png"))
     #print("images path : ", im_paths)
     common = "bts"
+    #common = "mixed"
+    #print(os.path.isfile(os.path.join(args.input_dir, f"FS/{common}.png")))
+    im_paths = glob.glob(os.path.join(args.input_dir, f"FS/{common}*.png"))
+    im_paths = sorted(im_paths)
+    print(im_paths)
 
-    wp_paths = glob.glob(os.path.join(args.input_dir, f"W+/{common}*.npy"))
-    wp_paths = sorted(wp_paths)
-    print(wp_paths)
+    os.makedirs(args.output_dir, exist_ok=True)
 
-    latent_wp_list = []
-    for wp_path in wp_paths:
-        if os.path.isfile(wp_path):
-            latent_wp = torch.from_numpy(convert_npy_code(np.load(wp_path))).to(args.device)
-            latent_wp_list.append(latent_wp)
-        else:
-            raise ValueError("invalid wp_path", wp_path)
+    align = Alignment(args)
+    for im_path in im_paths:
+        img = align.preprocess_img(im_path)
+        down_seg, _, _ = align.seg(img)
+        seg_target = torch.argmax(down_seg, dim=1).long()
+        #print(np.shape(seg_target))
+        vis_mask = vis_seg(np.array(seg_target[0].to("cpu")))
+        PIL.Image.fromarray(vis_mask).save(os.path.join(args.output_dir, im_path.split("/")[-1]))
 
-    fs_paths = glob.glob(os.path.join(args.input_dir, f"FS/{common}*.npz"))
-    fs_paths = sorted(fs_paths)
-    print(fs_paths)
+
+    #wp_paths = glob.glob(os.path.join(args.input_dir, f"W+/{common}*.npy"))
+    #wp_paths = sorted(wp_paths)
+    #print(wp_paths)
+
+    #latent_wp_list = []
+    #for wp_path in wp_paths:
+    #    if os.path.isfile(wp_path):
+    #        latent_wp = torch.from_numpy(convert_npy_code(np.load(wp_path))).to(args.device)
+    #        latent_wp_list.append(latent_wp)
+    #    else:
+    #        raise ValueError("invalid wp_path", wp_path)
+
+    #fs_paths = glob.glob(os.path.join(args.input_dir, f"FS/{common}*.npz"))
+    #fs_paths = sorted(fs_paths)
+    #print(fs_paths)
     
-    latent_in_list = []
-    latent_F_list = []
-    for fs_path in fs_paths:
-        if os.path.isfile(fs_path):
-    #        print("exist!", fs_path)
-            latent_in, latent_F = load_FS_latent(fs_path, args.device)
-            latent_in_list.append(latent_in)
-            latent_F_list.append(latent_F)
-        else:
-            raise ValueError("invalid fs_path", fs_path)
+    #latent_in_list = []
+    #latent_F_list = []
+    #for fs_path in fs_paths:
+    #    if os.path.isfile(fs_path):
+    ##        print("exist!", fs_path)
+    #        latent_in, latent_F = load_FS_latent(fs_path, args.device)
+    #        latent_in_list.append(latent_in)
+    #        latent_F_list.append(latent_F)
+    #    else:
+    #        raise ValueError("invalid fs_path", fs_path)
 
     #print(np.shape(latent_wp_list[0]), np.shape(latent_in_list[0]))
     #for latent_wp, latent_in in zip(latent_wp_list, latent_in_list):
@@ -84,11 +104,16 @@ def main(args):
     #    #print(ref_name)
     #    ii2s.save_FS_results([ref_name], gen_im, latent_in, latent_F)
 
-    latent_F_blended = np.zeros_like(latent_F_list[0].to(torch.device("cpu")))
-    for latent_F in latent_F_list:
-        latent_F_blended = latent_F_blended + np.array(latent_F.to(torch.device("cpu")))
-    latent_F_blended = torch.from_numpy(latent_F_blended / len(latent_F_list)).to(args.device)
- 
+    #latent_F_blended = np.zeros_like(latent_F_list[0].to(torch.device("cpu")))
+    #for latent_F in latent_F_list:
+    #    latent_F_blended = latent_F_blended + np.array(latent_F.to(torch.device("cpu")))
+    #latent_F_blended = torch.from_numpy(latent_F_blended / len(latent_F_list)).to(args.device)
+
+    #latent_S_blended = np.zeros_like(latent_in_list[0].to(torch.device("cpu")))
+    #for latent_in in latent_in_list:
+    #    latent_S_blended = latent_S_blended + np.array(latent_in.to(torch.device("cpu")))
+    #latent_S_blended = torch.from_numpy(latent_S_blended / len(latent_in_list)).to(args.device)
+
     #for fs_path, latent_in, latent_F in zip(fs_paths, latent_in_list, latent_F_list):
     #    gen_im, _ = ii2s.net.generator([latent_in], input_is_latent=True, return_latents=False,
     #                                   start_layer=4, end_layer=8, layer_in=latent_F_blended)
@@ -96,23 +121,14 @@ def main(args):
     #    #print(ref_name)
     #    ii2s.save_FS_results([ref_name], gen_im, latent_in, latent_F_blended)
 
-
-    latent_S_blended = np.zeros_like(latent_in_list[0].to(torch.device("cpu")))
-    for latent_in in latent_in_list:
-        latent_S_blended = latent_S_blended + np.array(latent_in.to(torch.device("cpu")))
-    latent_S_blended = torch.from_numpy(latent_S_blended / len(latent_in_list)).to(args.device)
-
-    for fs_path, latent_in, latent_F in zip(fs_paths, latent_in_list, latent_F_list):
-        gen_im, _ = ii2s.net.generator([latent_S_blended], input_is_latent=True, return_latents=False,
-                                       start_layer=4, end_layer=8, layer_in=latent_F)
-        ref_name = fs_path.split("/")[-1].split(".")[0]
+    #for fs_path, latent_in, latent_F in zip(fs_paths, latent_in_list, latent_F_list):
+    #    gen_im, _ = ii2s.net.generator([latent_S_blended], input_is_latent=True, return_latents=False,
+    #                                   start_layer=4, end_layer=8, layer_in=latent_F)
+    #    ref_name = fs_path.split("/")[-1].split(".")[0]
         #print(ref_name)
-        ii2s.save_FS_results([ref_name], gen_im, latent_S_blended, latent_F)
+    #    ii2s.save_FS_results([ref_name], gen_im, latent_S_blended, latent_F)
 
-    gen_im, _ = ii2s.net.generator([latent_S_blended], input_is_latent=True, return_latents=False,
-                                   start_layer=4, end_layer=8, layer_in=latent_F_blended)
-    ref_name = "mixed"
-    ii2s.save_FS_results([ref_name], gen_im, latent_S_blended, latent_F_blended)
+
 
     #im_set = {im_path1, im_path2, im_path3}
     #ii2s.invert_images_in_W(im_paths)
